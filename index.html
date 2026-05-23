@@ -721,30 +721,49 @@ function clearForm() {
 // ═══════════════════════════════════════════
 // GOOGLE SHEETS API
 // ═══════════════════════════════════════════
-async function postToSheet(data) {
-  const url = getScriptUrl();
-  if (!url) throw new Error('No script URL');
-  const resp = await fetch(url, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'addEntry', data }),
+// ── JSONP fetch — bypasses CORS from any host ──
+function jsonpFetch(url) {
+  return new Promise(function(resolve, reject) {
+    var cbName = 'cb_' + Math.random().toString(36).slice(2);
+    var script = document.createElement('script');
+    var timer = setTimeout(function() {
+      delete window[cbName];
+      document.body.removeChild(script);
+      reject(new Error('Timeout'));
+    }, 15000);
+    window[cbName] = function(data) {
+      clearTimeout(timer);
+      delete window[cbName];
+      document.body.removeChild(script);
+      resolve(data);
+    };
+    script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + cbName;
+    script.onerror = function() {
+      clearTimeout(timer);
+      delete window[cbName];
+      reject(new Error('Script load error'));
+    };
+    document.body.appendChild(script);
   });
-  if (!resp.ok) throw new Error('HTTP '+resp.status);
-  return resp.json();
+}
+
+async function postToSheet(data) {
+  // POST via GET with encoded data (Apps Script handles this)
+  const url = getScriptUrl();
+  const encoded = encodeURIComponent(JSON.stringify({ action: 'addEntry', data: data }));
+  return jsonpFetch(url + '?method=POST&body=' + encoded);
 }
 
 async function loadEntries() {
   const url = getScriptUrl();
-  if (!url) {
-    // Demo mode
-    if (allEntries.length === 0) allEntries = getDemoEntries();
-    renderEntries(); renderInvestments(); return;
-  }
   try {
-    const resp = await fetch(url + '?action=getEntries');
-    const data = await resp.json();
+    const data = await jsonpFetch(url + '?action=getEntries');
     allEntries = data.entries || [];
+    toast('Loaded ' + allEntries.length + ' entries');
   } catch(e) {
+    console.log('Sheet load error:', e.message);
     if (allEntries.length === 0) allEntries = getDemoEntries();
+    toast('Showing demo data — check connection');
   }
   renderEntries(); renderInvestments();
 }
