@@ -699,8 +699,7 @@ async function submitEntry() {
     toast('Entry saved!');
     clearForm();
   } catch(e) {
-    toast('Could not save — stored locally as demo');
-    allEntries.unshift(entry);
+    toast('Save failed: ' + e.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> Submit entry';
@@ -721,51 +720,60 @@ function clearForm() {
 // ═══════════════════════════════════════════
 // GOOGLE SHEETS API
 // ═══════════════════════════════════════════
-// ── JSONP fetch — bypasses CORS from any host ──
+async function postToSheet(data) {
+  const url = getScriptUrl();
+  const payload = encodeURIComponent(JSON.stringify({ action: 'addEntry', data: data }));
+  const result = await jsonpFetch(url + '?method=POST&body=' + payload);
+  if (result && result.error) throw new Error(result.error);
+  return result;
+}
+
 function jsonpFetch(url) {
   return new Promise(function(resolve, reject) {
     var cbName = 'cb_' + Math.random().toString(36).slice(2);
     var script = document.createElement('script');
     var timer = setTimeout(function() {
       delete window[cbName];
-      document.body.removeChild(script);
-      reject(new Error('Timeout'));
-    }, 15000);
+      if (script.parentNode) script.parentNode.removeChild(script);
+      reject(new Error('Request timed out — check your internet connection'));
+    }, 20000);
     window[cbName] = function(data) {
       clearTimeout(timer);
       delete window[cbName];
-      document.body.removeChild(script);
+      if (script.parentNode) script.parentNode.removeChild(script);
       resolve(data);
     };
     script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + cbName;
     script.onerror = function() {
       clearTimeout(timer);
       delete window[cbName];
-      reject(new Error('Script load error'));
+      reject(new Error('Could not reach Google Sheet'));
     };
     document.body.appendChild(script);
   });
 }
 
-async function postToSheet(data) {
-  // POST via GET with encoded data (Apps Script handles this)
-  const url = getScriptUrl();
-  const encoded = encodeURIComponent(JSON.stringify({ action: 'addEntry', data: data }));
-  return jsonpFetch(url + '?method=POST&body=' + encoded);
-}
-
 async function loadEntries() {
   const url = getScriptUrl();
+  var listEl = document.getElementById('entries-list');
+  if (listEl) listEl.innerHTML = '<div class="loading"><div class="spinner"></div> Loading from Google Sheet...</div>';
   try {
     const data = await jsonpFetch(url + '?action=getEntries');
-    allEntries = data.entries || [];
-    toast('Loaded ' + allEntries.length + ' entries');
+    if (data && data.entries) {
+      allEntries = data.entries;
+      toast('Loaded ' + allEntries.length + ' entries');
+    } else if (data && data.error) {
+      throw new Error(data.error);
+    } else {
+      allEntries = [];
+    }
   } catch(e) {
     console.log('Sheet load error:', e.message);
-    if (allEntries.length === 0) allEntries = getDemoEntries();
-    toast('Showing demo data — check connection');
+    allEntries = [];
+    toast('Could not load: ' + e.message);
   }
-  renderEntries(); renderInvestments();
+  renderEntries();
+  renderInvestments();
 }
 
 // ═══════════════════════════════════════════
