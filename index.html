@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Dahisrar Property Manager</title>
+<style>
+  :root {
+    --primary: #1F3864;
+    --primary-light: #2E5FA3;
+    --accent: #C55A11;
+    --success: #1E6B3C;
+    --success-bg: #E2EFDA;
+    --danger: #A32D2D;
+    --danger-bg: #FCEBEB;
+    --warning: #854F0B;
+    --warning-bg: #FAEEDA;
+    --bg: #F5F5F5;
+    --surface: #FFFFFF;
+    --border: #E0E0E0;
+    --text: #1A1A1A;
+    --text2: #555;
+    --text3: #888;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 15px; }
+
+  /* ── Layout ── */
+  #app { max-width: 420px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+  .screen { display: none; flex: 1; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* ── Top bar ── */
+  .topbar { background: var(--primary); color: #fff; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  .topbar-title { font-size: 16px; font-weight: 600; }
+  .topbar-sub { font-size: 12px; opacity: 0.75; margin-top: 1px; }
+  .topbar-right { display: flex; gap: 8px; align-items: center; }
+  .icon-btn { background: rgba(255,255,255,0.15); border: none; border-radius: 8px; color: #fff; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+
+  /* ── Bottom nav ── */
+  .bottom-nav { background: var(--surface); border-top: 1px solid var(--border); display: flex; position: sticky; bottom: 0; z-index: 10; }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 4px 8px; gap: 3px; cursor: pointer; color: var(--text3); font-size: 11px; border: none; background: none; transition: color 0.15s; }
+  .nav-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  .nav-item.active { color: var(--primary); }
+  .nav-item.admin-only { display: none; }
+  body.is-admin .nav-item.admin-only { display: flex; }
+
+  /* ── Scroll content ── */
+  .scroll-content { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── Cards ── */
+  .card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+
+  /* ── Form elements ── */
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  label { font-size: 13px; color: var(--text2); font-weight: 500; }
+  input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; background: var(--bg); color: var(--text); font-family: inherit; outline: none; transition: border-color 0.15s; -webkit-appearance: none; }
+  input:focus, select:focus, textarea:focus { border-color: var(--primary-light); background: var(--surface); }
+  textarea { resize: none; min-height: 70px; }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+  /* ── Buttons ── */
+  .btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 20px; border-radius: var(--radius-sm); font-size: 15px; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.15s, transform 0.1s; width: 100%; }
+  .btn:active { transform: scale(0.98); opacity: 0.9; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-outline { background: transparent; border: 1.5px solid var(--primary); color: var(--primary); }
+  .btn-sm { padding: 7px 14px; font-size: 13px; border-radius: 7px; width: auto; }
+  .btn-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid #F7C1C1; }
+
+  /* ── Tab switcher ── */
+  .tab-bar { display: flex; background: var(--bg); border-radius: var(--radius-sm); padding: 3px; gap: 2px; }
+  .tab-btn { flex: 1; padding: 8px 4px; border: none; background: none; border-radius: 7px; font-size: 13px; font-weight: 500; color: var(--text3); cursor: pointer; transition: all 0.15s; }
+  .tab-btn.active { background: var(--surface); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+  /* ── Entry type selector ── */
+  .type-selector { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .type-card { border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 12px 8px; text-align: center; cursor: pointer; transition: all 0.15s; }
+  .type-card.selected { border-color: var(--primary); background: #EEF2F8; }
+  .type-card svg { width: 24px; height: 24px; margin: 0 auto 4px; display: block; }
+  .type-card span { font-size: 12px; font-weight: 500; color: var(--text2); }
+  .type-card.selected span { color: var(--primary); }
+
+  /* ── Badges & pills ── */
+  .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-expense { background: var(--danger-bg); color: var(--danger); }
+  .badge-income { background: var(--success-bg); color: var(--success); }
+  .badge-investment { background: var(--warning-bg); color: var(--warning); }
+  .badge-active { background: var(--success-bg); color: var(--success); }
+  .badge-closed { background: #E8E8E8; color: #555; }
+  .badge-pending { background: var(--warning-bg); color: var(--warning); }
+
+  /* ── Entry list ── */
+  .entry-item { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .entry-item:last-child { border-bottom: none; }
+  .entry-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .entry-cat { font-size: 14px; font-weight: 600; flex: 1; }
+  .entry-amount { font-size: 15px; font-weight: 700; white-space: nowrap; }
+  .entry-amount.expense { color: var(--danger); }
+  .entry-amount.income { color: var(--success); }
+  .entry-amount.investment { color: var(--warning); }
+  .entry-meta { font-size: 12px; color: var(--text3); }
+  .entry-desc { font-size: 13px; color: var(--text2); }
+
+  /* ── Stat cards ── */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; }
+  .stat-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+  .stat-value { font-size: 20px; font-weight: 700; }
+  .stat-value.income { color: var(--success); }
+  .stat-value.expense { color: var(--danger); }
+  .stat-value.net-pos { color: var(--success); }
+  .stat-value.net-neg { color: var(--danger); }
+  .stat-value.investment { color: var(--warning); }
+
+  /* ── Monthly bar chart ── */
+  .chart-wrap { overflow-x: auto; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-bottom: 20px; position: relative; min-width: 340px; }
+  .bar-group { flex: 1; display: flex; gap: 2px; align-items: flex-end; position: relative; }
+  .bar { border-radius: 4px 4px 0 0; width: 100%; min-height: 2px; }
+  .bar-income { background: #1E6B3C; }
+  .bar-expense { background: #A32D2D; }
+  .bar-label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--text3); white-space: nowrap; }
+
+  /* ── PIN screen ── */
+  .pin-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 32px 24px; gap: 24px; }
+  .pin-logo { width: 64px; height: 64px; background: var(--primary); border-radius: 16px; display: flex; align-items: center; justify-content: center; }
+  .pin-logo svg { width: 36px; height: 36px; stroke: #fff; fill: none; stroke-width: 1.8; }
+  .pin-title { font-size: 22px; font-weight: 700; color: var(--primary); text-align: center; }
+  .pin-sub { font-size: 14px; color: var(--text2); text-align: center; line-height: 1.5; }
+  .pin-dots { display: flex; gap: 12px; justify-content: center; margin: 4px 0; }
+  .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--primary); transition: background 0.15s; }
+  .pin-dot.filled { background: var(--primary); }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 260px; }
+  .pin-key { height: 64px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); font-size: 22px; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text); transition: background 0.1s; }
+  .pin-key:active { background: var(--primary); color: #fff; }
+  .pin-key.del { font-size: 14px; color: var(--text2); }
+
+  /* ── Toast ── */
+  #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1A1A1A; color: #fff; padding: 10px 20px; border-radius: 30px; font-size: 14px; opacity: 0; transition: all 0.25s; z-index: 100; white-space: nowrap; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── Loading ── */
+  .loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px; color: var(--text3); font-size: 14px; }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 40px 20px; color: var(--text3); font-size: 14px; }
+  .empty svg { width: 48px; height: 48px; margin: 0 auto 12px; display: block; opacity: 0.4; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+  /* ── Setup notice ── */
+  .setup-box { background: #FFF8E1; border: 1px solid #FFE082; border-radius: var(--radius-sm); padding: 14px; font-size: 13px; color: #5D4037; line-height: 1.6; }
+  .setup-box code { background: rgba(0,0,0,0.08); padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+
+  /* ── Section label ── */
+  .section-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 2px; }
+
+  /* Investment fields */
+  .inv-fields { display: flex; flex-direction: column; gap: 10px; }
+  .progress-bar-wrap { background: var(--bg); border-radius: 20px; height: 6px; overflow: hidden; margin-top: 4px; }
+  .progress-bar { height: 100%; border-radius: 20px; background: var(--success); transition: width 0.3s; }
+
+  /* Month filter */
+  .month-filter { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .month-filter::-webkit-scrollbar { display: none; }
+  .month-chip { padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; cursor: pointer; white-space: nowrap; color: var(--text2); }
+  .month-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* Investment return progress */
+  .inv-stat-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text2); margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<div id="app">
+
+<!-- ═══════════ LOGIN SCREEN ═══════════ -->
+<div class="screen active" id="screen-login">
+  <div class="pin-screen">
+    <div class="pin-logo">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </div>
+    <div>
+      <div class="pin-title">Dahisrar Property</div>
+      <div class="pin-sub" style="margin-top:6px">Select your name and enter your PIN</div>
+    </div>
+
+    <div class="form-group" style="width:100%; max-width:280px">
+      <label>Who are you?</label>
+      <select id="user-select">
+        <option value="">— Select name —</option>
+      </select>
+    </div>
+
+    <div>
+      <div class="pin-dots" id="pin-dots">
+        <div class="pin-dot" id="d0"></div>
+        <div class="pin-dot" id="d1"></div>
+        <div class="pin-dot" id="d2"></div>
+        <div class="pin-dot" id="d3"></div>
+      </div>
+      <div style="font-size:12px; color:var(--text3); text-align:center; margin-top:6px" id="pin-hint">Enter 4-digit PIN</div>
+    </div>
+
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinPress('1')">1</button>
+      <button class="pin-key" onclick="pinPress('2')">2</button>
+      <button class="pin-key" onclick="pinPress('3')">3</button>
+      <button class="pin-key" onclick="pinPress('4')">4</button>
+      <button class="pin-key" onclick="pinPress('5')">5</button>
+      <button class="pin-key" onclick="pinPress('6')">6</button>
+      <button class="pin-key" onclick="pinPress('7')">7</button>
+      <button class="pin-key" onclick="pinPress('8')">8</button>
+      <button class="pin-key" onclick="pinPress('9')">9</button>
+      <button class="pin-key" style="background:none; border:none;" onclick="pinPress('clear')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg></button>
+      <button class="pin-key" onclick="pinPress('0')">0</button>
+      <button class="pin-key del" onclick="pinPress('del')">⌫</button>
+    </div>
+
+    <div class="setup-box" style="display:none" style="width:100%; max-width:320px">
+      <strong>Setup required:</strong> Connect your Google Sheet before use.
+      <br>Apps Script URL: <code id="script-url-display">Not set</code>
+      <br><br>
+      <input id="script-url-input" placeholder="Paste Apps Script Web App URL" style="margin-bottom:8px; font-size:13px;">
+      <button class="btn btn-outline btn-sm" onclick="saveScriptUrl()" style="width:100%">Save URL</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MAIN APP SCREEN ═══════════ -->
+<div class="screen" id="screen-main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topbar-title">Dahisrar Property</div>
+      <div class="topbar-sub" id="topbar-sub">Loading...</div>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" onclick="logout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- TAB PANELS -->
+  <div id="panel-add" class="panel" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+    <div class="scroll-content">
+      <div class="card-title" style="padding:0 2px">New entry</div>
+
+      <!-- Type selector -->
+      <div class="type-selector">
+        <div class="type-card selected" id="type-expense" onclick="selectType('expense')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#A32D2D" stroke-width="1.8"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 6v4l3 3"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
+          <span>Expense</span>
+        </div>
+        <div class="type-card" id="type-income" onclick="selectType('income')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#1E6B3C" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12l4-4 4 4"/></svg>
+          <span>Income</span>
+        </div>
+        <div class="type-card" id="type-investment" onclick="selectType('investment')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#854F0B" stroke-width="1.8"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          <span>Investment</span>
+        </div>
+      </div>
+
+      <!-- Common fields -->
+      <div class="card" style="display:flex; flex-direction:column; gap:12px;">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Month</label>
+            <select id="f-month">
+              <option>Jan</option><option>Feb</option><option>Mar</option>
+              <option>Apr</option><option>May</option><option>Jun</option>
+              <option>Jul</option><option>Aug</option><option>Sep</option>
+              <option>Oct</option><option>Nov</option><option>Dec</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Year</label>
+            <input type="number" id="f-year" value="2025" min="2020" max="2040">
+          </div>
+        </div>
+
+        <div class="form-group" id="field-category">
+          <label>Category</label>
+          <select id="f-category"></select>
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="f-desc" placeholder="Brief description of the entry..."></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Amount (INR)</label>
+            <input type="number" id="f-amount" placeholder="0" min="0">
+          </div>
+          <div class="form-group">
+            <label>Receipt / Ref #</label>
+            <input type="text" id="f-receipt" placeholder="Optional">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="f-date">
+        </div>
+
+        <!-- Investment-only fields -->
+        <div id="inv-extra" style="display:none; flex-direction:column; gap:12px;">
+          <div class="divider"></div>
+          <div class="section-label">Investment details</div>
+          <div class="form-group">
+            <label>Project / Investment name</label>
+            <input type="text" id="f-inv-name" placeholder="e.g. Flat purchase, Business loan">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Cash advanced (INR)</label>
+              <input type="number" id="f-cash-advanced" placeholder="0" min="0">
+            </div>
+            <div class="form-group">
+              <label>Expected return (INR)</label>
+              <input type="number" id="f-expected-return" placeholder="0" min="0">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Actual return received</label>
+              <input type="number" id="f-actual-return" placeholder="0" min="0">
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="f-inv-status">
+                <option value="Active">Active</option>
+                <option value="Pending">Pending</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea id="f-inv-notes" placeholder="Any notes about this investment..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="submitEntry()" id="submit-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        Submit entry
+      </button>
+    </div>
+  </div>
+
+  <div id="panel-entries" class="panel" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+    <div class="scroll-content">
+      <div style="display:flex; gap:8px; align-items:center; justify-content:space-between;">
+        <div class="card-title" style="padding:0">All entries</div>
+        <button class="btn btn-outline btn-sm" onclick="loadEntries()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+          Refresh
+        </button>
+      </div>
+
+      <!-- Filters -->
+      <div class="tab-bar" id="entries-type-filter">
+        <button class="tab-btn active" onclick="filterEntries('all', this)">All</button>
+        <button class="tab-btn" onclick="filterEntries('expense', this)">Expenses</button>
+        <button class="tab-btn" onclick="filterEntries('income', this)">Income</button>
+        <button class="tab-btn" onclick="filterEntries('investment', this)">Invest.</button>
+      </div>
+
+      <div class="month-filter" id="month-filter">
+        <div class="month-chip active" onclick="filterMonth('all', this)">All months</div>
+        <div class="month-chip" onclick="filterMonth('Jan', this)">Jan</div>
+        <div class="month-chip" onclick="filterMonth('Feb', this)">Feb</div>
+        <div class="month-chip" onclick="filterMonth('Mar', this)">Mar</div>
+        <div class="month-chip" onclick="filterMonth('Apr', this)">Apr</div>
+        <div class="month-chip" onclick="filterMonth('May', this)">May</div>
+        <div class="month-chip" onclick="filterMonth('Jun', this)">Jun</div>
+        <div class="month-chip" onclick="filterMonth('Jul', this)">Jul</div>
+        <div class="month-chip" onclick="filterMonth('Aug', this)">Aug</div>
+        <div class="month-chip" onclick="filterMonth('Sep', this)">Sep</div>
+        <div class="month-chip" onclick="filterMonth('Oct', this)">Oct</div>
+        <div class="month-chip" onclick="filterMonth('Nov', this)">Nov</div>
+        <div class="month-chip" onclick="filterMonth('Dec', this)">Dec</div>
+      </div>
+
+      <div class="card" id="entries-list">
+        <div class="loading"><div class="spinner"></div> Loading entries...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN: Dashboard panel -->
+  <div id="panel-dashboard" class="panel" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+    <div class="scroll-content">
+      <div class="card-title" style="padding:0 2px">Dashboard</div>
+
+      <div class="form-group">
+        <label>Filter by month</label>
+        <select id="dash-month-select" onchange="renderDashboard()">
+          <option value="all">Full year</option>
+          <option>Jan</option><option>Feb</option><option>Mar</option>
+          <option>Apr</option><option>May</option><option>Jun</option>
+          <option>Jul</option><option>Aug</option><option>Sep</option>
+          <option>Oct</option><option>Nov</option><option>Dec</option>
+        </select>
+      </div>
+
+      <!-- KPI cards -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total income</div>
+          <div class="stat-value income" id="kpi-income">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total expenses</div>
+          <div class="stat-value expense" id="kpi-expense">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Net balance</div>
+          <div class="stat-value" id="kpi-net">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active investments</div>
+          <div class="stat-value investment" id="kpi-inv">—</div>
+        </div>
+      </div>
+
+      <!-- Monthly bar chart -->
+      <div class="card">
+        <div class="card-title">Income vs expenses by month</div>
+        <div class="chart-wrap">
+          <div class="bar-chart" id="bar-chart"></div>
+        </div>
+        <div style="display:flex; gap:16px; margin-top:8px; font-size:12px; color:var(--text3);">
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;background:#1E6B3C;border-radius:2px;display:inline-block;"></span>Income</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;background:#A32D2D;border-radius:2px;display:inline-block;"></span>Expenses</span>
+        </div>
+      </div>
+
+      <!-- Top expense categories -->
+      <div class="card">
+        <div class="card-title">Top expense categories</div>
+        <div id="top-categories"></div>
+      </div>
+
+      <!-- Investment summary -->
+      <div class="card">
+        <div class="card-title">Investment summary</div>
+        <div id="inv-summary"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN: Investments panel -->
+  <div id="panel-investments" class="panel" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+    <div class="scroll-content">
+      <div style="display:flex; gap:8px; align-items:center; justify-content:space-between;">
+        <div class="card-title" style="padding:0">Investments</div>
+        <button class="btn btn-outline btn-sm" onclick="loadEntries()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+          Refresh
+        </button>
+      </div>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="filterInv('all', this)">All</button>
+        <button class="tab-btn" onclick="filterInv('Active', this)">Active</button>
+        <button class="tab-btn" onclick="filterInv('Pending', this)">Pending</button>
+        <button class="tab-btn" onclick="filterInv('Closed', this)">Closed</button>
+      </div>
+      <div id="inv-list">
+        <div class="loading"><div class="spinner"></div> Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="nav-item active" data-panel="add" onclick="switchPanel('add', this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      Add
+    </button>
+    <button class="nav-item" data-panel="entries" onclick="switchPanel('entries', this)">
+      <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Entries
+    </button>
+    <button class="nav-item admin-only" data-panel="dashboard" onclick="switchPanel('dashboard', this)">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="7" height="7" rx="1"/><rect x="15" y="3" width="7" height="7" rx="1"/><rect x="15" y="14" width="7" height="7" rx="1"/><rect x="2" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-item admin-only" data-panel="investments" onclick="switchPanel('investments', this)">
+      <svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      Invest.
+    </button>
+  </nav>
+</div>
+
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════
+const CATEGORIES = {
+  expense: [
+    'Repairs & Maintenance','Electrical Repairs','Plumbing Repairs','Painting / Touch-Up',
+    'Security Guard Salary','Gardener / Sweeper Salary','Cleaning / Labour Charges',
+    'Electricity Bill','Water / Boring Bill','Internet Bill','Generator / Fuel',
+    'Property Tax / Govt Dues','Legal / Documentation Fees','Transport / Conveyance',
+    'Construction Material','Steel / Rebar','Tiles / Flooring','Carpentry / Wood Work',
+    'Miscellaneous / Petty Cash'
+  ],
+  income: ['Rent Received','Advance / Deposit Received','Other Income / Receipts'],
+  investment: ['Property Investment','Business Investment','Loan Given','Other Investment']
+};
+
+const MONTHS_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ── State ──
+let currentUser = null;
+let allEntries = [];
+let activeType = 'expense';
+let filterType = 'all';
+let filterMonthVal = 'all';
+let invFilterStatus = 'all';
+let pinBuffer = '';
+
+// ── Storage ──
+function getScriptUrl() { return 'https://script.google.com/macros/s/AKfycbxQYopOztbcQtupLxj43zf_gSaJFhD7IrqJ7U_Ha3LspM7aBGz1miFKMPruFZ-ctq_9yg/exec'; }
+function saveScriptUrl() { toast('URL is built into this app'); }
+
+// ── Users list (stored in sheet, but fallback hardcoded for demo) ──
+// In production, this loads from the Apps Script endpoint
+const DEMO_USERS = [
+  { id: 'admin',  name: 'Admin',   pin: '0000', role: 'admin' },
+  { id: 'user1',  name: 'Surjeet', pin: '1111', role: 'user' },
+  { id: 'user2',  name: 'Vilas',   pin: '2222', role: 'user' },
+  { id: 'user3',  name: 'Rohan',   pin: '3333', role: 'user' },
+  { id: 'user4',  name: 'Mithun',  pin: '4444', role: 'user' },
+];
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+(function init() {
+  const sel = document.getElementById('user-select');
+  DEMO_USERS.forEach(u => {
+    const o = document.createElement('option');
+    o.value = u.id; o.textContent = u.name;
+    sel.appendChild(o);
+  });
+
+  const stored = getScriptUrl();
+  document.getElementById('script-url-display').textContent = stored ? stored.slice(0,40)+'...' : 'Not set';
+  if (stored) document.getElementById('script-url-input').value = stored;
+
+  // Set current month
+  const now = new Date();
+  document.getElementById('f-month').selectedIndex = now.getMonth();
+  document.getElementById('f-year').value = now.getFullYear();
+  document.getElementById('f-date').value = now.toISOString().split('T')[0];
+
+  updateCategoryList();
+})();
+
+// ═══════════════════════════════════════════
+// PIN LOGIC
+// ═══════════════════════════════════════════
+function pinPress(key) {
+  if (key === 'clear') { pinBuffer = ''; updateDots(); return; }
+  if (key === 'del') { pinBuffer = pinBuffer.slice(0,-1); updateDots(); return; }
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += key;
+  updateDots();
+  if (pinBuffer.length === 4) setTimeout(attemptLogin, 200);
+}
+
+function updateDots() {
+  for (let i=0; i<4; i++) {
+    document.getElementById('d'+i).classList.toggle('filled', i < pinBuffer.length);
+  }
+}
+
+function attemptLogin() {
+  const userId = document.getElementById('user-select').value;
+  if (!userId) { toast('Please select your name first'); pinBuffer=''; updateDots(); return; }
+  const user = DEMO_USERS.find(u => u.id === userId);
+  if (!user) { pinBuffer=''; updateDots(); return; }
+  if (pinBuffer !== user.pin) {
+    document.getElementById('pin-hint').textContent = 'Wrong PIN — try again';
+    document.getElementById('pin-hint').style.color = 'var(--danger)';
+    pinBuffer=''; updateDots(); return;
+  }
+  currentUser = user;
+  loginSuccess();
+}
+
+function loginSuccess() {
+  document.getElementById('screen-login').classList.remove('active');
+  document.getElementById('screen-main').classList.add('active');
+  document.getElementById('topbar-sub').textContent = currentUser.name + ' · ' + currentUser.role;
+  document.getElementById('topbar-title').textContent = 'Dahisrar Property';
+
+  if (currentUser.role === 'admin') {
+    document.body.classList.add('is-admin');
+  }
+  loadEntries();
+}
+
+function logout() {
+  currentUser = null; pinBuffer = ''; allEntries = [];
+  document.body.classList.remove('is-admin');
+  document.getElementById('screen-main').classList.remove('active');
+  document.getElementById('screen-login').classList.add('active');
+  document.getElementById('user-select').value = '';
+  document.getElementById('pin-hint').textContent = 'Enter 4-digit PIN';
+  document.getElementById('pin-hint').style.color = '';
+  updateDots();
+  switchPanel('add', document.querySelector('.nav-item'));
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function switchPanel(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-'+name).style.display = 'flex';
+  if (btn) btn.classList.add('active');
+  if (name === 'entries') renderEntries();
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'investments') renderInvestments();
+}
+
+// ═══════════════════════════════════════════
+// ENTRY TYPE / CATEGORY
+// ═══════════════════════════════════════════
+function selectType(type) {
+  activeType = type;
+  ['expense','income','investment'].forEach(t => {
+    document.getElementById('type-'+t).classList.toggle('selected', t === type);
+  });
+  document.getElementById('inv-extra').style.display = type === 'investment' ? 'flex' : 'none';
+  updateCategoryList();
+}
+
+function updateCategoryList() {
+  const sel = document.getElementById('f-category');
+  sel.innerHTML = '';
+  CATEGORIES[activeType].forEach(c => {
+    const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
+  });
+}
+
+// ═══════════════════════════════════════════
+// SUBMIT ENTRY
+// ═══════════════════════════════════════════
+async function submitEntry() {
+  const btn = document.getElementById('submit-btn');
+  const amount = parseFloat(document.getElementById('f-amount').value);
+  if (!amount || amount <= 0) { toast('Please enter a valid amount'); return; }
+
+  const entry = {
+    type: activeType,
+    month: document.getElementById('f-month').value,
+    year: document.getElementById('f-year').value,
+    category: document.getElementById('f-category').value,
+    description: document.getElementById('f-desc').value,
+    amount: amount,
+    receipt: document.getElementById('f-receipt').value,
+    date: document.getElementById('f-date').value,
+    submittedBy: currentUser.name,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (activeType === 'investment') {
+    entry.invName = document.getElementById('f-inv-name').value;
+    entry.cashAdvanced = parseFloat(document.getElementById('f-cash-advanced').value) || 0;
+    entry.expectedReturn = parseFloat(document.getElementById('f-expected-return').value) || 0;
+    entry.actualReturn = parseFloat(document.getElementById('f-actual-return').value) || 0;
+    entry.status = document.getElementById('f-inv-status').value;
+    entry.notes = document.getElementById('f-inv-notes').value;
+  }
+
+  btn.disabled = true; btn.textContent = 'Submitting...';
+
+  try {
+    await postToSheet(entry);
+    allEntries.unshift(entry);
+    toast('Entry saved!');
+    clearForm();
+  } catch(e) {
+    toast('Could not save — stored locally as demo');
+    allEntries.unshift(entry);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> Submit entry';
+  }
+}
+
+function clearForm() {
+  document.getElementById('f-amount').value = '';
+  document.getElementById('f-desc').value = '';
+  document.getElementById('f-receipt').value = '';
+  document.getElementById('f-inv-name').value = '';
+  document.getElementById('f-cash-advanced').value = '';
+  document.getElementById('f-expected-return').value = '';
+  document.getElementById('f-actual-return').value = '';
+  document.getElementById('f-inv-notes').value = '';
+}
+
+// ═══════════════════════════════════════════
+// GOOGLE SHEETS API
+// ═══════════════════════════════════════════
+async function postToSheet(data) {
+  const url = getScriptUrl();
+  if (!url) throw new Error('No script URL');
+  const resp = await fetch(url, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'addEntry', data }),
+  });
+  if (!resp.ok) throw new Error('HTTP '+resp.status);
+  return resp.json();
+}
+
+async function loadEntries() {
+  const url = getScriptUrl();
+  if (!url) {
+    // Demo mode
+    if (allEntries.length === 0) allEntries = getDemoEntries();
+    renderEntries(); renderInvestments(); return;
+  }
+  try {
+    const resp = await fetch(url + '?action=getEntries');
+    const data = await resp.json();
+    allEntries = data.entries || [];
+  } catch(e) {
+    if (allEntries.length === 0) allEntries = getDemoEntries();
+  }
+  renderEntries(); renderInvestments();
+}
+
+// ═══════════════════════════════════════════
+// RENDER: ENTRIES
+// ═══════════════════════════════════════════
+function filterEntries(type, btn) {
+  filterType = type;
+  document.querySelectorAll('#entries-type-filter .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEntries();
+}
+
+function filterMonth(mon, chip) {
+  filterMonthVal = mon;
+  document.querySelectorAll('.month-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  renderEntries();
+}
+
+function renderEntries() {
+  const container = document.getElementById('entries-list');
+  let filtered = allEntries.filter(e => {
+    if (filterType !== 'all' && e.type !== filterType) return false;
+    if (filterMonthVal !== 'all' && e.month !== filterMonthVal) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>No entries found</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(e => {
+    const sign = e.type === 'income' ? '+' : e.type === 'expense' ? '-' : '';
+    const amtClass = e.type;
+    const badge = `<span class="badge badge-${e.type}">${e.type}</span>`;
+    return `
+      <div class="entry-item">
+        <div class="entry-row">
+          <span class="entry-cat">${e.type === 'investment' ? (e.invName || e.category) : e.category}</span>
+          <span class="entry-amount ${amtClass}">${sign}₹${fmtNum(e.amount)}</span>
+        </div>
+        <div class="entry-row">
+          ${badge}
+          <span class="entry-meta">${e.month} ${e.year} · ${e.submittedBy}</span>
+        </div>
+        ${e.description ? `<div class="entry-desc">${e.description}</div>` : ''}
+        ${e.type === 'investment' ? `
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:2px;">
+            ${e.cashAdvanced ? `<span style="font-size:12px;color:var(--text3);">Advanced: ₹${fmtNum(e.cashAdvanced)}</span>` : ''}
+            ${e.expectedReturn ? `<span style="font-size:12px;color:var(--text3);">Expected: ₹${fmtNum(e.expectedReturn)}</span>` : ''}
+            ${e.actualReturn ? `<span style="font-size:12px;color:var(--success);">Received: ₹${fmtNum(e.actualReturn)}</span>` : ''}
+            <span class="badge badge-${(e.status||'active').toLowerCase()}">${e.status||'Active'}</span>
+          </div>
+        ` : ''}
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// RENDER: DASHBOARD (admin only)
+// ═══════════════════════════════════════════
+function renderDashboard() {
+  const selMonth = document.getElementById('dash-month-select').value;
+  let data = allEntries;
+  if (selMonth !== 'all') data = data.filter(e => e.month === selMonth);
+
+  const totalIncome = data.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
+  const totalExpense = data.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+  const net = totalIncome - totalExpense;
+  const activeInv = allEntries.filter(e=>e.type==='investment' && e.status==='Active').length;
+
+  document.getElementById('kpi-income').textContent = '₹'+fmtNum(totalIncome);
+  document.getElementById('kpi-expense').textContent = '₹'+fmtNum(totalExpense);
+  const netEl = document.getElementById('kpi-net');
+  netEl.textContent = (net >= 0 ? '+' : '') + '₹'+fmtNum(Math.abs(net));
+  netEl.className = 'stat-value ' + (net >= 0 ? 'net-pos' : 'net-neg');
+  document.getElementById('kpi-inv').textContent = activeInv + ' active';
+
+  renderBarChart();
+  renderTopCategories(data);
+  renderInvSummary();
+}
+
+function renderBarChart() {
+  const chart = document.getElementById('bar-chart');
+  const byMonth = {};
+  MONTHS_ORDER.forEach(m => { byMonth[m] = { income: 0, expense: 0 }; });
+  allEntries.forEach(e => {
+    if (!byMonth[e.month]) return;
+    if (e.type === 'income') byMonth[e.month].income += e.amount;
+    if (e.type === 'expense') byMonth[e.month].expense += e.amount;
+  });
+  const maxVal = Math.max(...Object.values(byMonth).flatMap(v=>[v.income,v.expense]), 1);
+  chart.innerHTML = MONTHS_ORDER.map(m => {
+    const d = byMonth[m];
+    const ih = Math.round((d.income/maxVal)*90);
+    const eh = Math.round((d.expense/maxVal)*90);
+    return `<div class="bar-group">
+      <div class="bar bar-income" style="height:${ih}px" title="${m} Income: ₹${fmtNum(d.income)}"></div>
+      <div class="bar bar-expense" style="height:${eh}px" title="${m} Expenses: ₹${fmtNum(d.expense)}"></div>
+      <span class="bar-label">${m}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderTopCategories(data) {
+  const el = document.getElementById('top-categories');
+  const expenses = data.filter(e=>e.type==='expense');
+  if (!expenses.length) { el.innerHTML = '<div class="empty" style="padding:20px 0">No expense data</div>'; return; }
+  const byCat = {};
+  expenses.forEach(e => { byCat[e.category] = (byCat[e.category]||0) + e.amount; });
+  const sorted = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const max = sorted[0][1];
+  el.innerHTML = sorted.map(([cat, amt]) => `
+    <div style="margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:3px;">
+        <span style="color:var(--text2);">${cat}</span>
+        <span style="font-weight:600;">₹${fmtNum(amt)}</span>
+      </div>
+      <div class="progress-bar-wrap"><div class="progress-bar" style="width:${Math.round(amt/max*100)}%; background:var(--danger);"></div></div>
+    </div>`).join('');
+}
+
+function renderInvSummary() {
+  const el = document.getElementById('inv-summary');
+  const invs = allEntries.filter(e=>e.type==='investment');
+  if (!invs.length) { el.innerHTML = '<div class="empty" style="padding:20px 0">No investments</div>'; return; }
+  const totalInvested = invs.reduce((s,e)=>s+e.amount,0);
+  const totalAdvanced = invs.reduce((s,e)=>s+(e.cashAdvanced||0),0);
+  const totalExpected = invs.reduce((s,e)=>s+(e.expectedReturn||0),0);
+  const totalReceived = invs.reduce((s,e)=>s+(e.actualReturn||0),0);
+  el.innerHTML = `
+    <div class="inv-stat-row"><span>Total invested</span><span style="font-weight:600;">₹${fmtNum(totalInvested)}</span></div>
+    <div class="inv-stat-row"><span>Cash advanced</span><span style="font-weight:600;">₹${fmtNum(totalAdvanced)}</span></div>
+    <div class="inv-stat-row"><span>Expected returns</span><span style="font-weight:600;">₹${fmtNum(totalExpected)}</span></div>
+    <div class="inv-stat-row"><span>Returns received</span><span style="font-weight:600; color:var(--success);">₹${fmtNum(totalReceived)}</span></div>
+    <div class="divider" style="margin:8px 0;"></div>
+    <div class="inv-stat-row"><span style="font-weight:600;">Return collected</span><span style="font-weight:700; color:${totalExpected>0?'var(--success)':'var(--text)'};">${totalExpected>0?Math.round(totalReceived/totalExpected*100):0}%</span></div>
+    <div class="progress-bar-wrap" style="margin-top:4px;"><div class="progress-bar" style="width:${totalExpected>0?Math.min(100,Math.round(totalReceived/totalExpected*100)):0}%;"></div></div>`;
+}
+
+// ═══════════════════════════════════════════
+// RENDER: INVESTMENTS PANEL
+// ═══════════════════════════════════════════
+function filterInv(status, btn) {
+  invFilterStatus = status;
+  document.querySelectorAll('#panel-investments .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderInvestments();
+}
+
+function renderInvestments() {
+  const container = document.getElementById('inv-list');
+  let invs = allEntries.filter(e=>e.type==='investment');
+  if (invFilterStatus !== 'all') invs = invs.filter(e=>e.status===invFilterStatus);
+  if (!invs.length) {
+    container.innerHTML = '<div class="card"><div class="empty"><svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>No investments found</div></div>';
+    return;
+  }
+  container.innerHTML = invs.map(e => {
+    const pct = e.expectedReturn > 0 ? Math.min(100, Math.round((e.actualReturn||0)/e.expectedReturn*100)) : 0;
+    return `<div class="card" style="margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+        <div>
+          <div style="font-weight:600; font-size:15px;">${e.invName || e.category}</div>
+          <div style="font-size:12px; color:var(--text3);">${e.month} ${e.year} · ${e.submittedBy}</div>
+        </div>
+        <span class="badge badge-${(e.status||'active').toLowerCase()}">${e.status||'Active'}</span>
+      </div>
+      <div class="stat-grid" style="margin-bottom:10px;">
+        <div class="stat-card"><div class="stat-label">Invested</div><div style="font-size:16px;font-weight:700;">₹${fmtNum(e.amount)}</div></div>
+        <div class="stat-card"><div class="stat-label">Cash advanced</div><div style="font-size:16px;font-weight:700;">₹${fmtNum(e.cashAdvanced||0)}</div></div>
+        <div class="stat-card"><div class="stat-label">Expected return</div><div style="font-size:16px;font-weight:700; color:var(--warning);">₹${fmtNum(e.expectedReturn||0)}</div></div>
+        <div class="stat-card"><div class="stat-label">Received</div><div style="font-size:16px;font-weight:700; color:var(--success);">₹${fmtNum(e.actualReturn||0)}</div></div>
+      </div>
+      ${e.expectedReturn > 0 ? `
+        <div style="font-size:12px; color:var(--text3); margin-bottom:4px;">Return progress: ${pct}%</div>
+        <div class="progress-bar-wrap"><div class="progress-bar" style="width:${pct}%;"></div></div>` : ''}
+      ${e.notes ? `<div style="font-size:13px; color:var(--text2); margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">${e.notes}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// DEMO DATA
+// ═══════════════════════════════════════════
+function getDemoEntries() {
+  return [
+    { type:'expense', month:'May', year:'2025', category:'Electricity Bill', description:'May electricity bill', amount:3200, receipt:'EB-0521', date:'2025-05-05', submittedBy:'Salim', timestamp:'' },
+    { type:'expense', month:'May', year:'2025', category:'Security Guard Salary', description:'May salary', amount:8000, receipt:'', date:'2025-05-01', submittedBy:'Ravi', timestamp:'' },
+    { type:'income', month:'May', year:'2025', category:'Rent Received', description:'Flat A rent', amount:25000, receipt:'R-101', date:'2025-05-03', submittedBy:'Admin', timestamp:'' },
+    { type:'expense', month:'Apr', year:'2025', category:'Repairs & Maintenance', description:'Borewell pump repair', amount:4500, receipt:'INV-234', date:'2025-04-12', submittedBy:'Suresh', timestamp:'' },
+    { type:'expense', month:'Apr', year:'2025', category:'Water / Boring Bill', description:'Water tanker x3', amount:1800, receipt:'', date:'2025-04-18', submittedBy:'Priya', timestamp:'' },
+    { type:'income', month:'Apr', year:'2025', category:'Rent Received', description:'Flat A rent April', amount:25000, receipt:'R-100', date:'2025-04-03', submittedBy:'Admin', timestamp:'' },
+    { type:'investment', month:'Mar', year:'2025', category:'Property Investment', description:'Investment in plot near Dahisar', amount:200000, receipt:'', date:'2025-03-15', submittedBy:'Admin', invName:'Dahisar North Plot', cashAdvanced:50000, expectedReturn:280000, actualReturn:0, status:'Active', notes:'3-year horizon. Expected appreciation 40%.' },
+    { type:'investment', month:'Jan', year:'2025', category:'Business Investment', description:'Loan to contractor for materials', amount:80000, receipt:'', date:'2025-01-10', submittedBy:'Admin', invName:'Contractor Material Advance', cashAdvanced:80000, expectedReturn:92000, actualReturn:92000, status:'Closed', notes:'Repaid in full with interest.' },
+    { type:'expense', month:'Mar', year:'2025', category:'Property Tax / Govt Dues', description:'Annual property tax', amount:12000, receipt:'PT-2025', date:'2025-03-20', submittedBy:'Admin', timestamp:'' },
+    { type:'income', month:'Mar', year:'2025', category:'Rent Received', description:'Flat A rent March', amount:25000, receipt:'R-099', date:'2025-03-03', submittedBy:'Admin', timestamp:'' },
+  ];
+}
+
+// ═══════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════
+function fmtNum(n) {
+  return Math.round(n).toLocaleString('en-IN');
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>
