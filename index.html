@@ -176,6 +176,14 @@
   /* Investment return progress */
   .inv-stat-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text2); margin-bottom: 4px; }
 
+  /* Monthly totals bar */
+  .totals-pill { display:inline-flex; flex-direction:column; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:6px 10px; min-width:60px; cursor:pointer; transition:background 0.1s; }
+  .totals-pill:active { background:var(--bg); }
+  .totals-pill.selected { border-color:var(--primary); background:#EEF2F8; }
+  .totals-pill-label { font-size:10px; color:var(--text3); font-weight:500; text-transform:uppercase; }
+  .totals-pill-inc { font-size:11px; font-weight:600; color:var(--success); }
+  .totals-pill-exp { font-size:11px; font-weight:600; color:var(--danger); }
+
   /* Edit / Drill modals */
   #edit-modal.open, #drill-modal.open { display: flex !important; }
   .tile-btn { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
@@ -387,11 +395,25 @@
     <div class="scroll-content">
       <div style="display:flex; gap:8px; align-items:center; justify-content:space-between;">
         <div class="card-title" style="padding:0">All entries</div>
-        <button class="btn btn-outline btn-sm" onclick="loadEntries()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
-          Refresh
-        </button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-outline btn-sm" onclick="exportCSV()" title="Export CSV">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            CSV
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="loadEntries()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+            Refresh
+          </button>
+        </div>
       </div>
+      <!-- Search bar -->
+      <div style="position:relative;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="Search entries..." oninput="renderEntries()"
+          style="padding-left:34px; font-size:14px; width:100%;">
+      </div>
+      <!-- Monthly totals bar -->
+      <div id="monthly-totals-bar" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
 
       <!-- Filters -->
       <div class="tab-bar" id="entries-type-filter">
@@ -428,15 +450,24 @@
     <div class="scroll-content">
       <div class="card-title" style="padding:0 2px">Dashboard</div>
 
-      <div class="form-group">
-        <label>Filter by month</label>
-        <select id="dash-month-select" onchange="renderDashboard()">
-          <option value="all">Full year</option>
-          <option>Jan</option><option>Feb</option><option>Mar</option>
-          <option>Apr</option><option>May</option><option>Jun</option>
-          <option>Jul</option><option>Aug</option><option>Sep</option>
-          <option>Oct</option><option>Nov</option><option>Dec</option>
-        </select>
+      <div style="display:flex;gap:10px;align-items:flex-end;">
+        <div class="form-group" style="flex:1;">
+          <label>Filter by month</label>
+          <select id="dash-month-select" onchange="renderDashboard()">
+            <option value="all">Full year</option>
+            <option>Jan</option><option>Feb</option><option>Mar</option>
+            <option>Apr</option><option>May</option><option>Jun</option>
+            <option>Jul</option><option>Aug</option><option>Sep</option>
+            <option>Oct</option><option>Nov</option><option>Dec</option>
+          </select>
+        </div>
+      </div>
+      <!-- Dashboard notes -->
+      <div class="card" style="padding:12px;">
+        <div class="card-title" style="margin-bottom:8px;">Admin notes</div>
+        <textarea id="dash-notes" placeholder="Add notes visible only to admin here..."
+          style="min-height:60px; font-size:13px; width:100%;"
+          oninput="saveDashNotes(this.value)"></textarea>
       </div>
 
       <!-- KPI cards — clickable for drill-down -->
@@ -926,11 +957,17 @@ function filterMonth(mon, chip) {
 
 function renderEntries() {
   const container = document.getElementById('entries-list');
+  const searchVal = (document.getElementById('search-input') ? document.getElementById('search-input').value : '').toLowerCase().trim();
   let filtered = allEntries.filter(e => {
     if (filterType !== 'all' && e.type !== filterType) return false;
     if (filterMonthVal !== 'all' && e.month !== filterMonthVal) return false;
+    if (searchVal) {
+      const haystack = ((e.category||'') + ' ' + (e.description||'') + ' ' + (e.invName||'') + ' ' + (e.submittedBy||'')).toLowerCase();
+      if (!haystack.includes(searchVal)) return false;
+    }
     return true;
   });
+  renderMonthlyTotals();
 
   if (filtered.length === 0) {
     container.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>No entries found</div>';
@@ -1191,10 +1228,15 @@ async function saveEdit() {
     e.notes         = document.getElementById('edit-inv-notes').value;
   }
   try {
-    await jsonpFetch(getScriptUrl() + '?action=editEntry&id=' + encodeURIComponent(e.id) + '&data=' + encodeURIComponent(JSON.stringify(e)));
-    toast('Entry updated');
+    var payload = encodeURIComponent(JSON.stringify({ action: 'editEntry', data: e }));
+    var result = await jsonpFetch(getScriptUrl() + '?method=POST&body=' + payload);
+    if (result && result.success) {
+      toast('Entry updated in sheet');
+    } else {
+      toast('Update issue: ' + (result && result.error ? result.error : 'check connection'));
+    }
   } catch(err) {
-    toast('Saved locally — sync to sheet on next load');
+    toast('Could not reach sheet: ' + err.message);
   }
   closeEdit();
   renderEntries();
@@ -1206,10 +1248,15 @@ async function deleteEntry() {
   if (!confirm('Delete this entry? This cannot be undone.')) return;
   var e = allEntries[editingIndex];
   try {
-    await jsonpFetch(getScriptUrl() + '?action=deleteEntry&id=' + encodeURIComponent(e.id) + '&type=' + e.type);
-    toast('Entry deleted');
+    var payload = encodeURIComponent(JSON.stringify({ action: 'deleteEntry', data: { id: e.id, type: e.type } }));
+    var result = await jsonpFetch(getScriptUrl() + '?method=POST&body=' + payload);
+    if (result && result.success) {
+      toast('Entry deleted from sheet');
+    } else {
+      toast('Delete issue: ' + (result && result.error ? result.error : 'check connection'));
+    }
   } catch(err) {
-    toast('Removed locally — will sync on next load');
+    toast('Could not reach sheet: ' + err.message);
   }
   allEntries.splice(editingIndex, 1);
   closeEdit();
@@ -1305,6 +1352,110 @@ document.addEventListener('click', function(ev) {
   if (ev.target === editModal) closeEdit();
   if (ev.target === drillModal) closeDrill();
 });
+
+// ═══════════════════════════════════════════
+// MONTHLY TOTALS BAR
+// ═══════════════════════════════════════════
+function renderMonthlyTotals() {
+  var bar = document.getElementById('monthly-totals-bar');
+  if (!bar) return;
+  var byMonth = {};
+  MONTHS_ORDER.forEach(function(m) { byMonth[m] = { inc: 0, exp: 0, count: 0 }; });
+  allEntries.forEach(function(e) {
+    if (!byMonth[e.month]) return;
+    if (e.type === 'income')  { byMonth[e.month].inc += e.amount; byMonth[e.month].count++; }
+    if (e.type === 'expense') { byMonth[e.month].exp += e.amount; byMonth[e.month].count++; }
+  });
+  var activeMons = MONTHS_ORDER.filter(function(m) { return byMonth[m].count > 0; });
+  if (!activeMons.length) { bar.innerHTML = ''; return; }
+  bar.innerHTML = activeMons.map(function(m) {
+    var d = byMonth[m];
+    var sel = filterMonthVal === m ? ' selected' : '';
+    return '<div class="totals-pill' + sel + '" onclick="filterMonth('' + m + '', this)">'
+      + '<span class="totals-pill-label">' + m + '</span>'
+      + (d.inc ? '<span class="totals-pill-inc">+₹' + fmtNum(d.inc) + '</span>' : '')
+      + (d.exp ? '<span class="totals-pill-exp">-₹' + fmtNum(d.exp) + '</span>' : '')
+      + '</div>';
+  }).join('');
+  // Add "All" pill
+  var allSel = filterMonthVal === 'all' ? ' selected' : '';
+  bar.innerHTML = '<div class="totals-pill' + allSel + '" onclick="filterMonth('all', this)">'
+    + '<span class="totals-pill-label">All</span></div>' + bar.innerHTML;
+}
+
+// ═══════════════════════════════════════════
+// DASHBOARD NOTES (saved to localStorage)
+// ═══════════════════════════════════════════
+function saveDashNotes(val) {
+  try { localStorage.setItem('dash_notes', val); } catch(e) {}
+}
+function loadDashNotes() {
+  try {
+    var n = localStorage.getItem('dash_notes');
+    if (n) { var el = document.getElementById('dash-notes'); if (el) el.value = n; }
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════
+// CSV EXPORT
+// ═══════════════════════════════════════════
+function exportCSV() {
+  var selMonth = filterMonthVal;
+  var selType  = filterType;
+  var searchVal = (document.getElementById('search-input') ? document.getElementById('search-input').value : '').toLowerCase().trim();
+
+  var filtered = allEntries.filter(function(e) {
+    if (selType !== 'all' && e.type !== selType) return false;
+    if (selMonth !== 'all' && e.month !== selMonth) return false;
+    if (searchVal) {
+      var h = ((e.category||'') + ' ' + (e.description||'') + ' ' + (e.invName||'') + ' ' + (e.submittedBy||'')).toLowerCase();
+      if (!h.includes(searchVal)) return false;
+    }
+    return true;
+  });
+
+  if (!filtered.length) { toast('No entries to export'); return; }
+
+  var headers = ['Type','Month','Year','Category','Description','Amount (INR)','Receipt/Ref','Submitted By','Date'];
+  var rows = filtered.map(function(e) {
+    return [
+      e.type, e.month, e.year,
+      (e.type === 'investment' ? (e.invName || e.category) : e.category),
+      (e.description || ''),
+      e.amount,
+      (e.receipt || ''),
+      (e.submittedBy || ''),
+      (e.date || '')
+    ].map(function(v) {
+      var s = String(v);
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        s = '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    });
+  });
+
+  var csv = [headers].concat(rows).map(function(r) { return r.join(','); }).join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  var label = selMonth !== 'all' ? selMonth + '_' : '';
+  label += (selType !== 'all' ? selType + '_' : '');
+  a.href = url;
+  a.download = 'dahisrar_' + label + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Exported ' + filtered.length + ' entries');
+}
+
+// Patch loginSuccess to load dash notes
+var _origLoginSuccess = loginSuccess;
+loginSuccess = function() {
+  _origLoginSuccess();
+  setTimeout(loadDashNotes, 300);
+};
 </script>
 </body>
 </html>
