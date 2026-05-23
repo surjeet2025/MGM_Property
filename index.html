@@ -175,6 +175,14 @@
 
   /* Investment return progress */
   .inv-stat-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text2); margin-bottom: 4px; }
+
+  /* Edit / Drill modals */
+  #edit-modal.open, #drill-modal.open { display: flex !important; }
+  .tile-btn { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
+  .tile-btn:active { transform: scale(0.97); }
+  .drill-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .drill-row:last-child { border-bottom: none; }
+  .drill-amt { font-weight: 700; white-space: nowrap; margin-left: 8px; }
 </style>
 </head>
 <body>
@@ -323,19 +331,35 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Cash advanced (INR)</label>
-              <input type="number" id="f-cash-advanced" placeholder="0" min="0">
+              <label>Term (months)</label>
+              <input type="number" id="f-inv-term" placeholder="e.g. 12" min="1">
             </div>
             <div class="form-group">
-              <label>Expected return (INR)</label>
-              <input type="number" id="f-expected-return" placeholder="0" min="0">
+              <label>Interest rate (% p.a.)</label>
+              <input type="number" id="f-inv-rate" placeholder="e.g. 12" min="0" step="0.1">
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
+              <label>Monthly income (INR)</label>
+              <input type="number" id="f-monthly-income" placeholder="0" min="0">
+            </div>
+            <div class="form-group">
+              <label>Cash advanced (INR)</label>
+              <input type="number" id="f-cash-advanced" placeholder="0" min="0">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Expected return (INR)</label>
+              <input type="number" id="f-expected-return" placeholder="0" min="0">
+            </div>
+            <div class="form-group">
               <label>Actual return received</label>
               <input type="number" id="f-actual-return" placeholder="0" min="0">
             </div>
+          </div>
+          <div class="form-row">
             <div class="form-group">
               <label>Status</label>
               <select id="f-inv-status">
@@ -415,22 +439,22 @@
         </select>
       </div>
 
-      <!-- KPI cards -->
+      <!-- KPI cards — clickable for drill-down -->
       <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-label">Total income</div>
+        <div class="stat-card tile-btn" onclick="drillDown('income')">
+          <div class="stat-label">Total income ↗</div>
           <div class="stat-value income" id="kpi-income">—</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Total expenses</div>
+        <div class="stat-card tile-btn" onclick="drillDown('expense')">
+          <div class="stat-label">Total expenses ↗</div>
           <div class="stat-value expense" id="kpi-expense">—</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Net balance</div>
+        <div class="stat-card tile-btn" onclick="drillDown('net')">
+          <div class="stat-label">Net balance ↗</div>
           <div class="stat-value" id="kpi-net">—</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Active investments</div>
+        <div class="stat-card tile-btn" onclick="drillDown('investment')">
+          <div class="stat-label">Investments ↗</div>
           <div class="stat-value investment" id="kpi-inv">—</div>
         </div>
       </div>
@@ -503,6 +527,115 @@
     </button>
   </nav>
 </div>
+
+  <!-- ═══ EDIT MODAL ═══ -->
+  <div id="edit-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:200; align-items:flex-end; justify-content:center;">
+    <div style="background:var(--surface); border-radius:20px 20px 0 0; width:100%; max-width:420px; padding:20px 16px 32px; max-height:85vh; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div style="font-size:16px; font-weight:600; color:var(--text);">Edit entry</div>
+        <button onclick="closeEdit()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);">✕</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div class="form-group">
+          <label>Category</label>
+          <input type="text" id="edit-category">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="edit-desc" style="min-height:60px;"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Amount (INR)</label>
+            <input type="number" id="edit-amount" min="0">
+          </div>
+          <div class="form-group">
+            <label>Receipt / Ref #</label>
+            <input type="text" id="edit-receipt">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Month</label>
+            <select id="edit-month">
+              <option>Jan</option><option>Feb</option><option>Mar</option>
+              <option>Apr</option><option>May</option><option>Jun</option>
+              <option>Jul</option><option>Aug</option><option>Sep</option>
+              <option>Oct</option><option>Nov</option><option>Dec</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Year</label>
+            <input type="number" id="edit-year" min="2020" max="2040">
+          </div>
+        </div>
+        <!-- Investment edit fields -->
+        <div id="edit-inv-fields" style="display:none; flex-direction:column; gap:12px;">
+          <div class="divider"></div>
+          <div class="section-label">Investment details</div>
+          <div class="form-group">
+            <label>Project name</label>
+            <input type="text" id="edit-inv-name">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Term (months)</label>
+              <input type="number" id="edit-inv-term" min="1">
+            </div>
+            <div class="form-group">
+              <label>Interest rate (% p.a.)</label>
+              <input type="number" id="edit-inv-rate" step="0.1" min="0">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Monthly income (INR)</label>
+              <input type="number" id="edit-monthly-income" min="0">
+            </div>
+            <div class="form-group">
+              <label>Cash advanced (INR)</label>
+              <input type="number" id="edit-cash-advanced" min="0">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Expected return (INR)</label>
+              <input type="number" id="edit-expected-return" min="0">
+            </div>
+            <div class="form-group">
+              <label>Actual return received</label>
+              <input type="number" id="edit-actual-return" min="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="edit-inv-status">
+              <option value="Active">Active</option>
+              <option value="Pending">Pending</option>
+              <option value="Closed">Closed</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea id="edit-inv-notes" style="min-height:60px;"></textarea>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveEdit()" style="margin-top:4px;">Save changes</button>
+        <button class="btn btn-danger" onclick="deleteEntry()" style="margin-top:0;">Delete entry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ DRILL-DOWN MODAL ═══ -->
+  <div id="drill-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:200; align-items:flex-start; justify-content:center; padding-top:60px;">
+    <div style="background:var(--surface); border-radius:var(--radius); width:calc(100% - 32px); max-width:400px; max-height:75vh; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--surface); z-index:1;">
+        <div style="font-size:15px; font-weight:600;" id="drill-title">Details</div>
+        <button onclick="closeDrill()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);">✕</button>
+      </div>
+      <div id="drill-content" style="padding:16px;"></div>
+    </div>
+  </div>
 
 </div><!-- /app -->
 
@@ -684,6 +817,9 @@ async function submitEntry() {
 
   if (activeType === 'investment') {
     entry.invName = document.getElementById('f-inv-name').value;
+    entry.invTerm = parseFloat(document.getElementById('f-inv-term').value) || 0;
+    entry.invRate = parseFloat(document.getElementById('f-inv-rate').value) || 0;
+    entry.monthlyIncome = parseFloat(document.getElementById('f-monthly-income').value) || 0;
     entry.cashAdvanced = parseFloat(document.getElementById('f-cash-advanced').value) || 0;
     entry.expectedReturn = parseFloat(document.getElementById('f-expected-return').value) || 0;
     entry.actualReturn = parseFloat(document.getElementById('f-actual-return').value) || 0;
@@ -707,14 +843,9 @@ async function submitEntry() {
 }
 
 function clearForm() {
-  document.getElementById('f-amount').value = '';
-  document.getElementById('f-desc').value = '';
-  document.getElementById('f-receipt').value = '';
-  document.getElementById('f-inv-name').value = '';
-  document.getElementById('f-cash-advanced').value = '';
-  document.getElementById('f-expected-return').value = '';
-  document.getElementById('f-actual-return').value = '';
-  document.getElementById('f-inv-notes').value = '';
+  ['f-amount','f-desc','f-receipt','f-inv-name','f-inv-term','f-inv-rate',
+   'f-monthly-income','f-cash-advanced','f-expected-return','f-actual-return','f-inv-notes'
+  ].forEach(function(id) { var el = document.getElementById(id); if(el) el.value = ''; });
 }
 
 // ═══════════════════════════════════════════
@@ -806,10 +937,13 @@ function renderEntries() {
     return;
   }
 
-  container.innerHTML = filtered.map(e => {
+  container.innerHTML = filtered.map((e, idx) => {
     const sign = e.type === 'income' ? '+' : e.type === 'expense' ? '-' : '';
     const amtClass = e.type;
     const badge = `<span class="badge badge-${e.type}">${e.type}</span>`;
+    const editBtn = (currentUser && currentUser.role === 'admin')
+      ? `<button onclick="openEdit(${allEntries.indexOf(e)})" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;color:var(--text2);">Edit</button>`
+      : '';
     return `
       <div class="entry-item">
         <div class="entry-row">
@@ -817,15 +951,18 @@ function renderEntries() {
           <span class="entry-amount ${amtClass}">${sign}₹${fmtNum(e.amount)}</span>
         </div>
         <div class="entry-row">
-          ${badge}
+          <div style="display:flex;gap:6px;align-items:center;">${badge}${editBtn}</div>
           <span class="entry-meta">${e.month} ${e.year} · ${e.submittedBy}</span>
         </div>
         ${e.description ? `<div class="entry-desc">${e.description}</div>` : ''}
         ${e.type === 'investment' ? `
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:2px;">
-            ${e.cashAdvanced ? `<span style="font-size:12px;color:var(--text3);">Advanced: ₹${fmtNum(e.cashAdvanced)}</span>` : ''}
-            ${e.expectedReturn ? `<span style="font-size:12px;color:var(--text3);">Expected: ₹${fmtNum(e.expectedReturn)}</span>` : ''}
-            ${e.actualReturn ? `<span style="font-size:12px;color:var(--success);">Received: ₹${fmtNum(e.actualReturn)}</span>` : ''}
+            ${e.invTerm ? `<span style="font-size:12px;color:var(--text3);">${e.invTerm}mo</span>` : ''}
+            ${e.invRate ? `<span style="font-size:12px;color:var(--text3);">${e.invRate}% p.a.</span>` : ''}
+            ${e.monthlyIncome ? `<span style="font-size:12px;color:var(--success);">₹${fmtNum(e.monthlyIncome)}/mo</span>` : ''}
+            ${e.cashAdvanced ? `<span style="font-size:12px;color:var(--text3);">Adv: ₹${fmtNum(e.cashAdvanced)}</span>` : ''}
+            ${e.expectedReturn ? `<span style="font-size:12px;color:var(--text3);">Exp: ₹${fmtNum(e.expectedReturn)}</span>` : ''}
+            ${e.actualReturn ? `<span style="font-size:12px;color:var(--success);">Rcvd: ₹${fmtNum(e.actualReturn)}</span>` : ''}
             <span class="badge badge-${(e.status||'active').toLowerCase()}">${e.status||'Active'}</span>
           </div>
         ` : ''}
@@ -872,7 +1009,7 @@ function renderBarChart() {
     const d = byMonth[m];
     const ih = Math.round((d.income/maxVal)*90);
     const eh = Math.round((d.expense/maxVal)*90);
-    return `<div class="bar-group">
+    return `<div class="bar-group" onclick="drillDownMonth('${m}')" style="cursor:pointer;">
       <div class="bar bar-income" style="height:${ih}px" title="${m} Income: ₹${fmtNum(d.income)}"></div>
       <div class="bar bar-expense" style="height:${eh}px" title="${m} Expenses: ₹${fmtNum(d.expense)}"></div>
       <span class="bar-label">${m}</span>
@@ -988,6 +1125,186 @@ function toast(msg) {
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
+
+// ═══════════════════════════════════════════
+// EDIT ENTRY (admin only)
+// ═══════════════════════════════════════════
+var editingIndex = -1;
+
+function openEdit(idx) {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  editingIndex = idx;
+  var e = allEntries[idx];
+  document.getElementById('edit-category').value = e.category || '';
+  document.getElementById('edit-desc').value = e.description || '';
+  document.getElementById('edit-amount').value = e.amount || '';
+  document.getElementById('edit-receipt').value = e.receipt || '';
+  document.getElementById('edit-year').value = e.year || new Date().getFullYear();
+  var mSel = document.getElementById('edit-month');
+  for (var i=0; i<mSel.options.length; i++) {
+    if (mSel.options[i].value === e.month) { mSel.selectedIndex = i; break; }
+  }
+  var invFields = document.getElementById('edit-inv-fields');
+  if (e.type === 'investment') {
+    invFields.style.display = 'flex';
+    document.getElementById('edit-inv-name').value = e.invName || '';
+    document.getElementById('edit-inv-term').value = e.invTerm || '';
+    document.getElementById('edit-inv-rate').value = e.invRate || '';
+    document.getElementById('edit-monthly-income').value = e.monthlyIncome || '';
+    document.getElementById('edit-cash-advanced').value = e.cashAdvanced || '';
+    document.getElementById('edit-expected-return').value = e.expectedReturn || '';
+    document.getElementById('edit-actual-return').value = e.actualReturn || '';
+    document.getElementById('edit-inv-notes').value = e.notes || '';
+    var sSel = document.getElementById('edit-inv-status');
+    for (var j=0; j<sSel.options.length; j++) {
+      if (sSel.options[j].value === e.status) { sSel.selectedIndex = j; break; }
+    }
+  } else {
+    invFields.style.display = 'none';
+  }
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeEdit() {
+  document.getElementById('edit-modal').classList.remove('open');
+  editingIndex = -1;
+}
+
+async function saveEdit() {
+  if (editingIndex < 0) return;
+  var e = allEntries[editingIndex];
+  e.category    = document.getElementById('edit-category').value;
+  e.description = document.getElementById('edit-desc').value;
+  e.amount      = parseFloat(document.getElementById('edit-amount').value) || 0;
+  e.receipt     = document.getElementById('edit-receipt').value;
+  e.month       = document.getElementById('edit-month').value;
+  e.year        = document.getElementById('edit-year').value;
+  if (e.type === 'investment') {
+    e.invName       = document.getElementById('edit-inv-name').value;
+    e.invTerm       = parseFloat(document.getElementById('edit-inv-term').value) || 0;
+    e.invRate       = parseFloat(document.getElementById('edit-inv-rate').value) || 0;
+    e.monthlyIncome = parseFloat(document.getElementById('edit-monthly-income').value) || 0;
+    e.cashAdvanced  = parseFloat(document.getElementById('edit-cash-advanced').value) || 0;
+    e.expectedReturn= parseFloat(document.getElementById('edit-expected-return').value) || 0;
+    e.actualReturn  = parseFloat(document.getElementById('edit-actual-return').value) || 0;
+    e.status        = document.getElementById('edit-inv-status').value;
+    e.notes         = document.getElementById('edit-inv-notes').value;
+  }
+  try {
+    await jsonpFetch(getScriptUrl() + '?action=editEntry&id=' + encodeURIComponent(e.id) + '&data=' + encodeURIComponent(JSON.stringify(e)));
+    toast('Entry updated');
+  } catch(err) {
+    toast('Saved locally — sync to sheet on next load');
+  }
+  closeEdit();
+  renderEntries();
+  renderDashboard();
+}
+
+async function deleteEntry() {
+  if (editingIndex < 0) return;
+  if (!confirm('Delete this entry? This cannot be undone.')) return;
+  var e = allEntries[editingIndex];
+  try {
+    await jsonpFetch(getScriptUrl() + '?action=deleteEntry&id=' + encodeURIComponent(e.id) + '&type=' + e.type);
+    toast('Entry deleted');
+  } catch(err) {
+    toast('Removed locally — will sync on next load');
+  }
+  allEntries.splice(editingIndex, 1);
+  closeEdit();
+  renderEntries();
+  renderDashboard();
+}
+
+// ═══════════════════════════════════════════
+// DRILL-DOWN
+// ═══════════════════════════════════════════
+function closeDrill() {
+  document.getElementById('drill-modal').classList.remove('open');
+}
+
+function drillDown(type) {
+  var selMonth = document.getElementById('dash-month-select').value;
+  var data = allEntries.filter(function(e) {
+    if (selMonth !== 'all' && e.month !== selMonth) return false;
+    if (type === 'income') return e.type === 'income';
+    if (type === 'expense') return e.type === 'expense';
+    if (type === 'investment') return e.type === 'investment';
+    if (type === 'net') return e.type === 'income' || e.type === 'expense';
+    return true;
+  });
+
+  var titles = { income:'Income entries', expense:'Expense entries', investment:'Investments', net:'All transactions' };
+  document.getElementById('drill-title').textContent = titles[type] || 'Details';
+
+  if (!data.length) {
+    document.getElementById('drill-content').innerHTML = '<div class="empty">No entries</div>';
+  } else {
+    var totalInc = data.filter(function(e){return e.type==='income';}).reduce(function(s,e){return s+e.amount;},0);
+    var totalExp = data.filter(function(e){return e.type==='expense';}).reduce(function(s,e){return s+e.amount;},0);
+
+    var summary = '';
+    if (type === 'net') {
+      summary = '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:4px;font-weight:600;">'
+        + '<span>Income</span><span style="color:var(--success);">+₹'+fmtNum(totalInc)+'</span></div>'
+        + '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:12px;font-weight:600;">'
+        + '<span>Expenses</span><span style="color:var(--danger);">-₹'+fmtNum(totalExp)+'</span></div>';
+    }
+
+    document.getElementById('drill-content').innerHTML = summary + data.map(function(e) {
+      var sign = e.type==='income' ? '+' : e.type==='expense' ? '-' : '';
+      var col = e.type==='income' ? 'var(--success)' : e.type==='expense' ? 'var(--danger)' : 'var(--warning)';
+      return '<div class="drill-row">'
+        + '<div><div style="font-weight:500;font-size:13px;">'+(e.invName||e.category)+'</div>'
+        + '<div style="font-size:11px;color:var(--text3);">'+e.month+' '+e.year+' · '+e.submittedBy+'</div>'
+        + (e.description ? '<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+e.description+'</div>' : '')
+        + '</div>'
+        + '<span class="drill-amt" style="color:'+col+';">'+sign+'₹'+fmtNum(e.amount)+'</span>'
+        + '</div>';
+    }).join('');
+  }
+  document.getElementById('drill-modal').classList.add('open');
+}
+
+function drillDownMonth(month) {
+  var data = allEntries.filter(function(e) { return e.month === month; });
+  document.getElementById('drill-title').textContent = month + ' — all transactions';
+  if (!data.length) {
+    document.getElementById('drill-content').innerHTML = '<div class="empty">No entries for '+month+'</div>';
+  } else {
+    var inc = data.filter(function(e){return e.type==='income';}).reduce(function(s,e){return s+e.amount;},0);
+    var exp = data.filter(function(e){return e.type==='expense';}).reduce(function(s,e){return s+e.amount;},0);
+    var summary = '<div style="display:flex;gap:12px;margin-bottom:12px;">'
+      + '<div style="flex:1;background:var(--success-bg);border-radius:8px;padding:10px;text-align:center;">'
+      + '<div style="font-size:11px;color:var(--success);font-weight:600;text-transform:uppercase;">Income</div>'
+      + '<div style="font-size:16px;font-weight:700;color:var(--success);">+₹'+fmtNum(inc)+'</div></div>'
+      + '<div style="flex:1;background:var(--danger-bg);border-radius:8px;padding:10px;text-align:center;">'
+      + '<div style="font-size:11px;color:var(--danger);font-weight:600;text-transform:uppercase;">Expenses</div>'
+      + '<div style="font-size:16px;font-weight:700;color:var(--danger);">-₹'+fmtNum(exp)+'</div></div>'
+      + '</div>';
+    document.getElementById('drill-content').innerHTML = summary + data.map(function(e) {
+      var sign = e.type==='income' ? '+' : e.type==='expense' ? '-' : '';
+      var col = e.type==='income' ? 'var(--success)' : e.type==='expense' ? 'var(--danger)' : 'var(--warning)';
+      return '<div class="drill-row">'
+        + '<div><div style="font-weight:500;font-size:13px;">'+(e.invName||e.category)+'</div>'
+        + '<div style="font-size:11px;color:var(--text3);">'+e.submittedBy+'</div>'
+        + (e.description ? '<div style="font-size:12px;color:var(--text2);">'+e.description+'</div>' : '')
+        + '</div>'
+        + '<span class="drill-amt" style="color:'+col+';">'+sign+'₹'+fmtNum(e.amount)+'</span>'
+        + '</div>';
+    }).join('');
+  }
+  document.getElementById('drill-modal').classList.add('open');
+}
+
+// Close modals on background tap
+document.addEventListener('click', function(ev) {
+  var editModal = document.getElementById('edit-modal');
+  var drillModal = document.getElementById('drill-modal');
+  if (ev.target === editModal) closeEdit();
+  if (ev.target === drillModal) closeDrill();
+});
 </script>
 </body>
 </html>
