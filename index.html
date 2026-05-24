@@ -323,7 +323,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       </div>
       <div class="search-wrap">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="search-input" placeholder="Search entries..." oninput="renderEntries()">
+        <input type="text" id="search-input" placeholder="Search entries..." oninput="clearTimeout(window._st);window._st=setTimeout(renderEntries,250)">
       </div>
       <div class="tab-bar" id="entries-type-filter">
         <button class="tab-btn active" onclick="filterEntries('all',this)">All</button>
@@ -514,6 +514,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 </div>
 <script>
 var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQYopOztbcQtupLxj43zf_gSaJFhD7IrqJ7U_Ha3LspM7aBGz1miFKMPruFZ-ctq_9yg/exec';
+function sanitize(v){if(v==null)return'';return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 var CATEGORIES = {
   expense:['Repairs & Maintenance','Electrical Repairs','Plumbing Repairs','Painting / Touch-Up','Security Guard Salary','Gardener / Sweeper Salary','Cleaning / Labour Charges','Electricity Bill','Water / Boring Bill','Internet Bill','Generator / Fuel','Property Tax / Govt Dues','Legal / Documentation Fees','Transport / Conveyance','Construction Material','Steel / Rebar','Tiles / Flooring','Carpentry / Wood Work','Miscellaneous / Petty Cash'],
@@ -766,11 +767,11 @@ function renderEntries() {
       invMeta += '<span class="badge badge-'+(e.status||'active').toLowerCase()+'">'+(e.status||'Active')+'</span></div>';
     }
     return '<div class="entry-item">'
-      +'<div class="entry-row"><span class="entry-cat">'+(e.type==='investment'?(e.invName||e.category):e.category)+'</span>'
+      +'<div class="entry-row"><span class="entry-cat">'+(e.type==='investment'?sanitize(e.invName||e.category):sanitize(e.category))+'</span>'
       +'<span class="entry-amount '+e.type+'">'+sign+'₹'+fmtNum(e.amount)+'</span></div>'
       +'<div class="entry-row"><div style="display:flex;gap:6px;align-items:center;"><span class="badge badge-'+e.type+'">'+e.type+'</span>'+editBtn+'</div>'
-      +'<span class="entry-meta">'+e.month+' '+e.year+' · '+e.submittedBy+'</span></div>'
-      +(e.description?'<div class="entry-desc">'+e.description+'</div>':'')
+      +'<span class="entry-meta">'+e.month+' '+e.year+' · '+sanitize(e.submittedBy)+'</span></div>'
+      +(e.description?'<div class="entry-desc">'+sanitize(e.description)+'</div>':'')
       +invMeta+'</div>';
   }).join('');
 }
