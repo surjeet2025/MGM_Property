@@ -660,6 +660,7 @@ async function submitEntry() {
     var payload = encodeURIComponent(JSON.stringify({action:'addEntry',data:entry}));
     var result  = await jsonpFetch(SCRIPT_URL+'?method=POST&body='+payload);
     if (result && result.success) {
+      entry.id = result.id;
       allEntries.unshift(entry);
       toast('Entry saved!');
       clearForm();
